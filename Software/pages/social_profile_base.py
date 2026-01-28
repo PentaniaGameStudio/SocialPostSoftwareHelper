@@ -16,6 +16,40 @@ from state import AppState
 from social_editor_shell import HELP_EFFECT_JS, HELP_CONDITION_JS, TIME_SLOTS
 from ui_helpers import NoWheelComboBox, ClickableImageLabel
 
+# ============================================================
+# PARAMÈTRES UI (modifiables facilement)
+# ============================================================
+
+# Largeurs max des blocs
+PROFILE_EDITOR_MAX_WIDTH = 1200
+POST_EDITOR_MAX_WIDTH = 1200          # ✅ largeur globale du bloc post (conteneur)
+
+# Image sizes
+PROFILE_IMAGE_SIZE = 50
+POST_IMAGE_SIZE = 220
+
+# Spacing / margins
+HEADER_HSPACING = 20                 # espace entre image et colonne droite
+HEADER_MARGINS = (0, 0, 0, 0)         # (left, top, right, bottom)
+POST_FORM_SPACING = 10               # spacing interne du form (vertical)
+
+# Description sizing
+DESCRIPTION_SAMPLE = "Sometimes the world is loud, so I hide in other worlds instead"
+DESCRIPTION_MIN_EXTRA_PX = 24
+DESCRIPTION_LINES = 8                # hauteur approx en lignes
+DESCRIPTION_MIN_WIDTH = 260
+
+# Emoji block
+EMOJI_MAX_WIDTH = 520
+
+# Dropdown sizes
+TIMESLOT_MIN_WIDTH = 220
+EMOJI_PRESET_MIN_WIDTH = 240
+RESET_BTN_WIDTH = 80
+
+# Validators
+INT_MAX = 999999
+
 
 class SocialProfilePageBase(QWidget):
     PROFILE_GROUP_TITLE = "Profile"
@@ -100,7 +134,7 @@ class SocialProfilePageBase(QWidget):
         root = QVBoxLayout(w)
 
         grp = QGroupBox(self.PROFILE_GROUP_TITLE)
-        grp.setMaximumWidth(720)  # ✅ centre visuellement (et évite la mega largeur)
+        grp.setMaximumWidth(PROFILE_EDITOR_MAX_WIDTH)
         form = QFormLayout(grp)
 
         self.lbl_profile_id = QLabel("-")
@@ -124,9 +158,10 @@ class SocialProfilePageBase(QWidget):
         # Header compact: image (≤ 200px) à gauche + displayName à droite
         # (sans labels "defaultDisplayName"/"defaultProfileImage")
         # ─────────────────────────────────────────────────────────────
-        self.lbl_profile_img.setFixedSize(50, 50)
+        self.lbl_profile_img.setFixedSize(PROFILE_IMAGE_SIZE, PROFILE_IMAGE_SIZE)
 
         header = QWidget()
+        header.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         header_lay = QHBoxLayout(header)
         header_lay.setContentsMargins(0, 0, 0, 0)
         header_lay.setSpacing(12)
@@ -145,10 +180,19 @@ class SocialProfilePageBase(QWidget):
     def _build_post_editor(self) -> QWidget:
         w = QWidget()
         root = QVBoxLayout(w)
+        w.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        root.setContentsMargins(0, 0, 0, 0)
 
         self.grp_post = QGroupBox("")
+        self.grp_post.setMaximumWidth(POST_EDITOR_MAX_WIDTH)
         self.grp_post.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
         form = QFormLayout(self.grp_post)
+        form.setFormAlignment(Qt.AlignHCenter | Qt.AlignTop)          # centre le contenu du form
+        form.setLabelAlignment(Qt.AlignRight | Qt.AlignVCenter)       # labels alignés proprement
+        form.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)    # les champs grandissent
+        form.setHorizontalSpacing(12)
+        form.setVerticalSpacing(8)
+
 
         self.lbl_post_id = QLabel("-")
         self.lbl_post_id.setTextInteractionFlags(Qt.TextSelectableByMouse)
@@ -195,6 +239,9 @@ class SocialProfilePageBase(QWidget):
         self.le_condition.setToolTip(HELP_CONDITION_JS)
         self.le_effect.setToolTip(HELP_EFFECT_JS)
 
+        self.le_condition.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.le_effect.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+
         # Optionnel: tooltip plus long (ms). -1 => reste jusqu'à quitter
         self.le_condition.setToolTipDuration(-1)
         self.le_effect.setToolTipDuration(-1)
@@ -202,7 +249,7 @@ class SocialProfilePageBase(QWidget):
         # Emoji (compact)
         # =========================================================
         grp_emoji = QGroupBox("Emoji")
-        grp_emoji.setMaximumWidth(520)  # compact visuel (ajuste si besoin)
+        grp_emoji.setMaximumWidth(EMOJI_MAX_WIDTH)
         emoji_layout = QVBoxLayout(grp_emoji)
         emoji_layout.setContentsMargins(8, 8, 8, 8)
         emoji_layout.setSpacing(6)
@@ -212,11 +259,11 @@ class SocialProfilePageBase(QWidget):
         row_preset.setSpacing(6)
 
         self.cb_emoji_preset = NoWheelComboBox()
-        self.cb_emoji_preset.setMinimumWidth(240)
+        self.cb_emoji_preset.setMinimumWidth(EMOJI_PRESET_MIN_WIDTH)
         self.cb_emoji_preset.currentIndexChanged.connect(self._on_emoji_preset_selected)
 
         self.btn_emoji_reset = QPushButton("Reset")
-        self.btn_emoji_reset.setFixedWidth(80)
+        self.btn_emoji_reset.setFixedWidth(RESET_BTN_WIDTH)
         self.btn_emoji_reset.clicked.connect(self._emoji_reset_custom)
 
         row_preset.addWidget(QLabel("Preset"))
@@ -232,7 +279,7 @@ class SocialProfilePageBase(QWidget):
         grid.setContentsMargins(0, 0, 0, 0)
 
         # Validator numérique (0..999999)
-        self._emoji_int_validator = QIntValidator(0, 999999, self)
+        self._emoji_int_validator = QIntValidator(0, INT_MAX, self)
 
         # Stocke les inputs: (key,"min"/"max") -> QLineEdit
         self.emoji_inputs: dict[tuple[str, str], QLineEdit] = {}
@@ -301,24 +348,28 @@ class SocialProfilePageBase(QWidget):
         self.cb_comment_set = NoWheelComboBox()
         self.cb_comment_set.currentIndexChanged.connect(self._on_post_simple_changed)
 
+        self.cb_comment_set.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        
         # =========================================================
         # Header: image à gauche (collée), PostID centré + timeSlot + description
         # =========================================================
         header = QWidget()
+        header.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         h = QHBoxLayout(header)
-        h.setContentsMargins(0, 0, 0, 0)
-        h.setSpacing(20)  # ✅ écart demandé
+        h.setContentsMargins(*HEADER_MARGINS)
+        h.setSpacing(HEADER_HSPACING)
+        
+        self.lbl_post_img.setFixedSize(POST_IMAGE_SIZE, POST_IMAGE_SIZE)
+        self.lbl_post_img.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
 
-        # Image (pictureName) - collée à gauche
-        self.lbl_post_img.setFixedSize(220, 220)
-        h.addWidget(self.lbl_post_img, 0, alignment=Qt.AlignLeft | Qt.AlignTop)
 
-        # Colonne droite dans un widget (pour pouvoir lui donner une minWidth propre)
+        # Colonne droite
         right_widget = QWidget()
         right_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         right_col = QVBoxLayout(right_widget)
         right_col.setContentsMargins(0, 0, 0, 0)
         right_col.setSpacing(10)
+
 
         # Post ID (gros + centré)
         self.lbl_post_id.setAlignment(Qt.AlignHCenter | Qt.AlignVCenter)
@@ -332,37 +383,57 @@ class SocialProfilePageBase(QWidget):
 
         right_col.addWidget(self.lbl_post_id, 0, alignment=Qt.AlignHCenter)
 
-        self.cb_timeslot.setMinimumWidth(220)  # ✅ évite le 'morn' tronqué
-        right_col.addWidget(self.cb_timeslot, 0, alignment=Qt.AlignLeft)
+        self.cb_timeslot.setMinimumWidth(TIMESLOT_MIN_WIDTH)  # ✅ évite le 'morn' tronqué
+        right_col.addWidget(self.cb_timeslot, 0, alignment=Qt.AlignCenter)
 
-        description_sample = "Sometimes the sworld is loud, so I hide in other worlds instead"
-        desc_width = self.te_description.fontMetrics().horizontalAdvance(description_sample)
-        self.te_description.setMinimumWidth(desc_width + 24)
+
+        # La description doit s'étirer dans la largeur du bloc Post
         self.te_description.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.te_description.setMinimumWidth(DESCRIPTION_MIN_WIDTH )
         line_height = self.te_description.fontMetrics().lineSpacing()
-        self.te_description.setFixedHeight(line_height * 8 + 12)
-        right_col.addWidget(self.te_description, 0, alignment=Qt.AlignLeft)
+        self.te_description.setFixedHeight(line_height * DESCRIPTION_LINES + 12)
+        right_col.addWidget(self.te_description)
 
         # Un peu d'air en bas pour occuper la hauteur restante
         right_col.addStretch(1)
 
-        # Le widget droit prend toute la place restante
+        h.addWidget(self.lbl_post_img, 0, Qt.AlignLeft | Qt.AlignTop)
+        h.setSpacing(20)
         h.addWidget(right_widget, 1)
 
         # On met tout ça dans le form en une seule "row"
-        form.addRow("", header)
+        form.addRow(header)
 
-        form.addRow("lewdCondition", row_lewd)
-        form.addRow("conditionJS", self.le_condition)
-        form.addRow("effectJs", self.le_effect)
-        form.addRow(grp_emoji)
-        form.addRow("comments (Set)", self.cb_comment_set)
+        form.addRow("Lewd Condition", self._center(row_lewd))
+        form.addRow("Condition (JS)", self.le_condition)
+        form.addRow("Effect (Js)", self.le_effect)
+        form.addRow("Comments (Set)", self.cb_comment_set)
+        form.addRow("", self._center(grp_emoji))                       # row full-width déjà, donc nickel
 
         root.addStretch(1)
-        root.addWidget(self.grp_post, 1)
+        wrapper = QWidget()
+        wrapper.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+
+        wl = QHBoxLayout(wrapper)
+        wl.setContentsMargins(0, 0, 0, 0)
+        wl.addStretch(1)
+        wl.addWidget(self.grp_post)
+        wl.addStretch(1)
+
+        root.addWidget(wrapper)
         root.addStretch(2)
         return w
 
+    def _center(self, widget: QWidget) -> QWidget:
+        """Retourne un widget wrapper qui centre 'widget' horizontalement."""
+        w = QWidget()
+        lay = QHBoxLayout(w)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.addStretch(1)
+        lay.addWidget(widget, 0)
+        lay.addStretch(1)
+        return w
+        
     def _refresh_emoji_preset_dropdown(self) -> None:
         presets = sorted(self._emoji_presets().keys())
         with QSignalBlocker(self.cb_emoji_preset):
