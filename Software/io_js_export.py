@@ -93,6 +93,7 @@ def export_to_js(data: Dict[str, Any]) -> str:
             "conditionJS": p.get("conditionJS", "") or "",
             "effectJs": p.get("effectJs", "") or "",
             "commentsSetId": p.get("commentsSet", "") or "",
+            "lewdCondition": p.get("lewdCondition", {"min": 0, "max": 999999}) or {"min": 0, "max": 999999},
         }
 
         preset_id = (p.get("emojiPreset", "") or "").strip()
