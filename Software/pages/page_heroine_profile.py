@@ -73,6 +73,14 @@ class PageHeroineProfile(SocialProfilePageBase):
             paste=self._paste_post,
         )
 
+        # --- Drag & drop interne pour réordonner les posts
+        self.shell.panel_posts.list.setDragEnabled(True)
+        self.shell.panel_posts.list.setAcceptDrops(True)
+        self.shell.panel_posts.list.setDropIndicatorShown(True)
+        self.shell.panel_posts.list.setDefaultDropAction(Qt.MoveAction)
+        self.shell.panel_posts.list.setDragDropMode(QAbstractItemView.InternalMove)
+        self.shell.panel_posts.list.model().rowsMoved.connect(self._on_posts_reordered)
+
         # Empêche saisie profile panel
         self.shell.panel_profiles.input.setEnabled(False)
         self.shell.panel_profiles.btn_edit.setEnabled(False)
@@ -128,6 +136,7 @@ class PageHeroineProfile(SocialProfilePageBase):
 
         new_id = ListPanel.make_unique_name(base_id, exists=lambda s: s in posts)  # <= il faut importer ListPanel
         new_data = copy.deepcopy(data)
+        new_data["order"] = self.shell.panel_posts.list.count()
         posts[new_id] = new_data
 
         self.state.mark_dirty()
@@ -165,13 +174,51 @@ class PageHeroineProfile(SocialProfilePageBase):
         post.setdefault("lewdCondition", {"min": 0, "max": 999999})
         return post
 
+    @staticmethod
+    def _to_int(text: str, default: int = 0) -> int:
+        try:
+            return int(text)
+        except (TypeError, ValueError):
+            return default
+
     def _list_profiles(self) -> list[str]:
         # profil unique => toujours affiché
         self._ensure_heroine_root()
         return [self.PROFILE_ID]
 
     def _list_posts(self, _profile_id: str) -> list[str]:
-        return sorted(self._heroine_posts().keys())
+        self._ensure_post_orders()
+        return [
+            post_id for post_id, _ in sorted(
+                self._heroine_posts().items(),
+                key=lambda kv: self._to_int(kv[1].get("order", 0), 0),
+            )
+        ]
+
+    def _ensure_post_orders(self) -> None:
+        posts = self._heroine_posts()
+        missing = [pid for pid, p in posts.items() if "order" not in p]
+        if not missing:
+            return
+
+        for i, pid in enumerate(sorted(posts.keys())):
+            posts.setdefault(pid, {})["order"] = i
+
+    def _rebuild_post_orders(self) -> None:
+        posts = self._heroine_posts()
+        for i in range(self.shell.panel_posts.list.count()):
+            item = self.shell.panel_posts.list.item(i)
+            if not item:
+                continue
+            post_id = item.text()
+            if post_id in posts:
+                posts[post_id]["order"] = i
+
+    def _on_posts_reordered(self, *_args) -> None:
+        if self._building_ui:
+            return
+        self._rebuild_post_orders()
+        self.state.mark_dirty()
 
     def _on_profile_selected(self, _profile_id: str | None) -> None:
         # Quand on clique le profil => refresh profil
@@ -283,7 +330,8 @@ class PageHeroineProfile(SocialProfilePageBase):
             "emojiPreset": "",
             "emojiOverride": self._default_emoji(),
             "commentsSet": "",
-            "lewdCondition": {"min": 0, "max": 999999}
+            "lewdCondition": {"min": 0, "max": 999999},
+            "order": self.shell.panel_posts.list.count(),
         }
 
         self.state.mark_dirty()

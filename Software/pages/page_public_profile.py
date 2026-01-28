@@ -67,6 +67,14 @@ class PagePublicProfile(SocialProfilePageBase):
 
         # Capte le ré-ordonnancement
         self.shell.panel_profiles.list.model().rowsMoved.connect(self._on_profiles_reordered)
+
+        # --- Drag & drop interne pour réordonner les posts
+        self.shell.panel_posts.list.setDragEnabled(True)
+        self.shell.panel_posts.list.setAcceptDrops(True)
+        self.shell.panel_posts.list.setDropIndicatorShown(True)
+        self.shell.panel_posts.list.setDefaultDropAction(Qt.MoveAction)
+        self.shell.panel_posts.list.setDragDropMode(QAbstractItemView.InternalMove)
+        self.shell.panel_posts.list.model().rowsMoved.connect(self._on_posts_reordered)
             
         layout = QVBoxLayout(self)
         layout.addWidget(self.shell, 1)
@@ -198,7 +206,9 @@ class PagePublicProfile(SocialProfilePageBase):
             return False
 
         new_id = ListPanel.make_unique_name(base_id, exists=lambda s: s in posts)
-        posts[new_id] = copy.deepcopy(data)
+        new_data = copy.deepcopy(data)
+        new_data["order"] = self.shell.panel_posts.list.count()
+        posts[new_id] = new_data
 
         self.state.mark_dirty()
 
@@ -263,6 +273,15 @@ class PagePublicProfile(SocialProfilePageBase):
         self._rebuild_profile_orders()
         self.state.mark_dirty()
 
+    def _on_posts_reordered(self, *_args) -> None:
+        if self._building_ui:
+            return
+        profile_id = self.shell.current_profile_id()
+        if not profile_id:
+            return
+        self._rebuild_post_orders(profile_id)
+        self.state.mark_dirty()
+
     # =========================================================
     # Shell bindings
     # =========================================================
@@ -279,7 +298,13 @@ class PagePublicProfile(SocialProfilePageBase):
     def _list_posts(self, profile_id: str) -> list[str]:
         if not profile_id:
             return []
-        return sorted(self._profile_posts(profile_id).keys())
+        self._ensure_post_orders(profile_id)
+        return [
+            post_id for post_id, _ in sorted(
+                self._profile_posts(profile_id).items(),
+                key=lambda kv: self._to_int(kv[1].get("order", 0), 0),
+            )
+        ]
 
     def _on_profile_selected(self, profile_id: str | None) -> None:
         self._refresh_profile_editor(profile_id)
@@ -302,6 +327,25 @@ class PagePublicProfile(SocialProfilePageBase):
 
         for i, pid in enumerate(sorted(profiles.keys())):
             profiles.setdefault(pid, {})["order"] = i
+
+    def _ensure_post_orders(self, profile_id: str) -> None:
+        posts = self._profile_posts(profile_id)
+        missing = [pid for pid, p in posts.items() if "order" not in p]
+        if not missing:
+            return
+
+        for i, pid in enumerate(sorted(posts.keys())):
+            posts.setdefault(pid, {})["order"] = i
+
+    def _rebuild_post_orders(self, profile_id: str) -> None:
+        posts = self._profile_posts(profile_id)
+        for i in range(self.shell.panel_posts.list.count()):
+            item = self.shell.panel_posts.list.item(i)
+            if not item:
+                continue
+            post_id = item.text()
+            if post_id in posts:
+                posts[post_id]["order"] = i
 
     def reload_from_state(self) -> None:
         with self._ui_guard():
@@ -495,7 +539,8 @@ class PagePublicProfile(SocialProfilePageBase):
             "emojiPreset": "",
             "emojiOverride": self._default_emoji(),
             "commentsSet": "",
-            "lewdCondition": {"min": 0, "max": 999999}
+            "lewdCondition": {"min": 0, "max": 999999},
+            "order": self.shell.panel_posts.list.count(),
         }
 
         self.state.mark_dirty()
